@@ -1,0 +1,15 @@
+; cPEG6_GMX.top created by acpype (Rev: 0) on Thu Nov  9 14:35:39 2023
+
+[ defaults ]
+; nbfunc        comb-rule       gen-pairs       fudgeLJ fudgeQQ
+1               2               yes             0.5     0.8333
+
+; Include cPEG6_GMX.itp topology
+#include "cPEG6_GMX.itp"
+
+[ system ]
+ cPEG6
+
+[ molecules ]
+; Compound        nmols
+ cPEG6            1     

@@ -1,0 +1,5 @@
+#include "/home/ryo/ryk-spec_repository/gmx-toolkit/runner/gaff.ff/forcefield.itp"
+#include "/home/ryo/ryk-spec_repository/gmx-toolkit/runner/gaff.ff/tip4pew.itp"
+[ system ]
+tip4pew water
+[ molecules ]

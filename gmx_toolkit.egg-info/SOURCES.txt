@@ -1,0 +1,7 @@
+README.md
+setup.py
+gmx_toolkit.egg-info/PKG-INFO
+gmx_toolkit.egg-info/SOURCES.txt
+gmx_toolkit.egg-info/dependency_links.txt
+gmx_toolkit.egg-info/requires.txt
+gmx_toolkit.egg-info/top_level.txt

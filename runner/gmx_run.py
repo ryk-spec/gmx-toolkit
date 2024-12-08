@@ -70,9 +70,8 @@ class ForceFieldSetup:
 
         # セクションごとにコンテンツを分割（例: [ moleculetype ], [ atoms ]）
         sections = re.split(r'(\[.*?\])', content)
-
         # 最初の要素が空の場合は削除
-        if sections[0].strip() == '':
+        if "[" not in sections[0].strip() :
             sections.pop(0)
 
         # セクション名とその内容をペアにして辞書に格納
@@ -102,8 +101,9 @@ class ForceFieldSetup:
         assert self.data_dict is not None, "\
             最初に `itp_parser` を使って .itp ファイルをパースしてください。"
         # [ moleculetype ] セクションから分子名を抽出
+        # print(self.data_dict.keys())
         self.mole_name = self.data_dict["[ moleculetype ]"]
-        self.mole_name = self.mole_name.split("\n")[-1].split("\t")[0]
+        self.mole_name = self.mole_name.split("\n")[-1].split()[0]
 
     def write_itp(self, data_dict, keys, itp_path):
         """
@@ -246,7 +246,7 @@ class InitialStructure:
         # GROMACSのinsert-moleculesコマンドを生成
         insert = f"gmx insert-molecules -box 5 5 5 \
             --ci {output_pdb} -nmol 4000 -try 3 \
-            -o {os.path.splitext(solv_pdb)[0]}_solvated.gro"
+            -o {os.path.splitext(solv_pdb)[0]}.gro"
         
         # コマンドを実行
         run_command_with_input(insert)
@@ -270,7 +270,7 @@ class InitialStructure:
         # ボックスサイズをnm³からcm³に変換し、必要な分子数を計算
         N_0_float = (box_size * 1e-7)**3  # 体積 (cm³)
         N_0_float *= self.density  # 質量 (g)
-        N_0_float /= const.Avogadro  # モルに変換
+        N_0_float *= const.Avogadro  # モルに変換
         N_0_float /= M_0  # 分子数を計算
         N_0 = int(N_0_float)  # 整数に丸める
         
@@ -297,12 +297,18 @@ class InitialStructure:
         # コマンドを実行
         run_command_with_input(solvate)
 
-    def soln_setup(self, solute_gro_path,solute_itp_path,solv_gro_path, solv_itp_path, wf,box_size=5):
+    def soln_setup(self, solute_gro_path,solute_itp_path,solute_itp_path_out,solv_gro_path, solv_itp_path, wf,box_size=5):
         """
         GROMACSツールを使用して溶媒和を設定します。
 
         パラメータ:
         ----------
+        solute_gro_path : str
+            溶質の .gro ファイルへのパス。
+        solute_itp_path : str
+            溶質の .itp ファイルへのパス。
+        solute_itp_path : str
+            溶質の .itp ファイルへのパス。(atomtypesを省き出力)
         solv_gro_path : str
             溶媒の .gro ファイルへのパス。
         solv_itp_path : str
@@ -313,12 +319,11 @@ class InitialStructure:
         # .groファイルの最初の分子の分子量を計算
         M_0 = InitialStructure.get_M(solv_gro_path, 0)
         M_1 = InitialStructure.get_M(solute_gro_path, 0)
-        
         # ボックスサイズをnm³からcm³に変換し、必要な分子数を計算
         N_1_float = (box_size * 1e-7)**3  # 体積 (cm³)
         N_1_float *= self.density  # 質量 (g)
         N_1_float *= wf
-        N_1_float /= const.Avogadro  # モルに変換
+        N_1_float *= const.Avogadro  # モルに変換
         N_1_float /= M_1  # 分子数を計算
         N_1 = int(N_1_float)  # 整数に丸める
         N_0 = N_1 * M_1 / wf * (1-wf) / M_0
@@ -329,25 +334,29 @@ class InitialStructure:
         solv.get_moleculename()
         solute = ForceFieldSetup(ffdir=None)
         solute.itp_parser(itp_path=solute_itp_path)
+        solute.write_itp(
+            data_dict=solute.data_dict,
+            keys=["atomtypes"],
+            itp_path=solute_itp_path_out
+        )
         solute.get_moleculename()
-
         # 溶媒和システムのトポロジーファイルを作成
         ForceFieldSetup.write_top(
-            top_path=f"{os.path.basename(os.path.splitext(solute_gro_path)[0])}_{os.path.basename(os.path.splitext(solv_itp_path)[0])}.top",
-            itp_paths=[solv.ffdir + "/forcefield.itp", solv.itp_path,solute.itp_path],
+            top_path=f"{os.path.basename(os.path.splitext(solute_itp_path_out)[0])}_{os.path.basename(os.path.splitext(solv_itp_path)[0])}_solvated.top",
+            itp_paths=[solv.ffdir + "/forcefield.itp", solv.itp_path,solute_itp_path_out],
             nums=[N_1,None],
-            molecules=["MOL",solv.mole_name],
-            name_of_run=f"{os.path.basename(os.path.splitext(solute_itp_path)[0])} in {os.path.basename(os.path.splitext(solv_itp_path)[0])}"
+            molecules=[solute.mole_name,solv.mole_name],
+            name_of_run=f"{os.path.basename(os.path.splitext(solute_itp_path_out)[0])} in {os.path.basename(os.path.splitext(solv_itp_path)[0])}"
         )
         
         # GROMACSのsolvateコマンドを生成
         insert = f"gmx insert-molecules -box {box_size} {box_size} {box_size} \
-            --ci {solute_gro_path} -nmol {N_1} \
-            -o {os.path.basename(os.path.splitext(solute_gro_path)[0])}_randomized.gro"
-        solvate = f"gmx solvate -cp {os.path.basename(os.path.splitext(solute_gro_path)[0])}_randomized.gro \
+            -ci {solute_gro_path} -nmol {N_1} \
+            -o {os.path.basename(os.path.splitext(solute_itp_path_out)[0])}_randomized.gro"
+        solvate = f"gmx solvate -cp {os.path.basename(os.path.splitext(solute_itp_path_out)[0])}_randomized.gro \
             -cs {solv_gro_path} \
-            -o {os.path.basename(os.path.splitext(solute_gro_path)[0])}_{os.path.basename(os.path.splitext(solv_itp_path)[0])}.gro \
-            -p {os.path.basename(os.path.splitext(solute_gro_path)[0])}_{os.path.basename(os.path.splitext(solv_itp_path)[0])}.top\
+            -o {os.path.basename(os.path.splitext(solute_itp_path_out)[0])}_{os.path.basename(os.path.splitext(solv_itp_path)[0])}_solvated.gro \
+            -p {os.path.basename(os.path.splitext(solute_itp_path_out)[0])}_{os.path.basename(os.path.splitext(solv_itp_path)[0])}_solvated.top\
             -maxsol {N_0}"
         
         # コマンドを実行
@@ -387,7 +396,7 @@ class RunThrow:
         run_command_with_input(grompp)
         run_command_with_input(mdrun)
 
-    def run_nvt(self, T, run_ns=0.5):
+    def run_nvt(self, T, run_ns=0.5,grps=["SOL"]):
         """
         NVT（定温定容）シミュレーションを実行します。
 
@@ -396,7 +405,7 @@ class RunThrow:
         :param T: 目標温度（K）
         :param run_ns: シミュレーション時間（ns）
         """
-        RunThrow.generate_nvt_mdp(temperature=T, run_ns=run_ns)
+        RunThrow.generate_nvt_mdp(temperature=T, run_ns=run_ns,grps=grps)
         tpr = os.path.splitext(self.topfile)[0]
         T = str(T).replace(".", "p")
         prev_tpr = tpr.replace("solvated", "EM")
@@ -406,7 +415,7 @@ class RunThrow:
         run_command_with_input(grompp)
         run_command_with_input(mdrun)
 
-    def run_npt(self, T, run_ns=5):
+    def run_npt(self, T, run_ns=5,grps=["SOL"]):
         """
         NPT（定温定圧）シミュレーションを実行します。
 
@@ -415,7 +424,7 @@ class RunThrow:
         :param T: 目標温度（K）
         :param run_ns: シミュレーション時間（ns）
         """
-        RunThrow.generate_npt_mdp(temperature=T, run_ns=run_ns)
+        RunThrow.generate_npt_mdp(temperature=T, run_ns=run_ns,grps=grps)
         tpr = os.path.splitext(self.topfile)[0]
         T = str(T).replace(".", "p")
         prev_tpr = tpr.replace("solvated", f"{T}_nvt")
@@ -425,7 +434,7 @@ class RunThrow:
         run_command_with_input(grompp)
         run_command_with_input(mdrun)
 
-    def run_production(self, T, run_ns=5):
+    def run_production(self, T, run_ns=5,grps=["SOL"]):
         """
         生産シミュレーションを実行します。
 
@@ -434,7 +443,7 @@ class RunThrow:
         :param T: 目標温度（K）
         :param run_ns: シミュレーション時間（ns）
         """
-        RunThrow.generate_production_mdp(temperature=T, run_ns=run_ns)
+        RunThrow.generate_production_mdp(temperature=T, run_ns=run_ns,grps=grps)
         tpr = os.path.splitext(self.topfile)[0]
         T = str(T).replace(".", "p")
         prev_tpr = tpr.replace("solvated", f"{T}_npt")
@@ -585,41 +594,91 @@ class RunThrow:
         production_params["ref-t"] = "\t".join([f"{temperature}" for _ in grps])
         RunThrow.write_mdp(output_file, production_params)
 
-def solv_MD():
+def solv_MD(solv_gro,solv_itp,box_size=5,nvt_ns=0.5,npt_ns=5,production_ns=5,T=301.15,solv_pdb=None):
+    """
+    溶媒のMDを回すメソッド
+
+    Args:
+        solv_gro (str): 溶媒和された .gro
+        solv_itp (str): 溶媒の .itp
+        solv_pdb (str, optional): 溶媒1分子の .pdb 指定するとsolv_groを生成してくれる. Default は None.
+        box_size (float): 箱のサイズ nm
+        nvt_ns (float) : NVT緩和 ns
+        npt_ns (float) : NPT緩和 ns
+        production_ns (float) : production run ns
+        T (float): 絶対温度
+    """
     solv = InitialStructure(0.9)
-    # solv.register_solv(
-    #     solv_pdb=f"{os.path.dirname(__file__)}/gaff.ff/methanol.pdb"
-    # )
+    if solv_pdb is not None:
+        solv.register_solv(
+            solv_pdb=solv_pdb
+        )
+        solv_gro = os.path.splitext(solv_pdb)[0]+".pdb"
     solv.solv_setup(
-        solv_gro_path=f"{os.path.dirname(__file__)}/gaff.ff/tip4p.gro",
-        solv_itp_path=f"{os.path.dirname(__file__)}/gaff.ff/tip4pew.itp"
+        solv_gro_path=solv_gro,
+        solv_itp_path=solv_itp,
+        box_size=box_size
     )
+    topfile = os.path.basename(solv_itp)
+    topfile = os.path.splitext(topfile)[0]+"_solvated.top"
+    grofile = os.path.basename(solv_itp)
+    grofile = os.path.splitext(grofile)[0]+"_solvated.gro"
     solv_run = RunThrow(
-        topfile="tip4pew_solvated.top",
-        init_grofile="tip4pew_solvated.gro"
+        topfile=topfile,
+        init_grofile=grofile
     )
     solv_run.run_EM()
-    solv_run.run_nvt(T=301.15)
-    solv_run.run_npt(T=301.15)
-    solv_run.run_production(T=301.15)
+    solv_run.run_nvt(T=T,run_ns=nvt_ns)
+    solv_run.run_npt(T=T,run_ns=npt_ns)
+    solv_run.run_production(T=T,run_ns=production_ns)
 
-def soln_MD():
+def soln_MD(solute_itp,solute_itp_out,solute_gro,solv_gro,solv_itp,box_size=8,wf=0.1,
+            nvt_ns=0.5,npt_ns=10,production_ns=5,T=301.15,solv_pdb=None):
+    """
+    溶液のMDを回すメソッド
+
+    Args:
+        solute_itp (_type_): 溶質の .itp
+        solute_itp_out (_type_): 溶媒の .itp [ atomtypes ]を除去するのに用いる．ffnonbonded.itpにデータがないと怒られるよ！
+        solute_gro (_type_): _description_
+        solv_gro (str): 溶媒和された .gro
+        solv_itp (str): 溶媒の .itp
+        box_size (float): 箱のサイズ nm
+        T (float): 絶対温度
+        wf (float, optional): 溶質重量分率. Defaults to 0.1.
+        nvt_ns (float) : NVT緩和 ns
+        npt_ns (float) : NPT緩和 ns
+        production_ns (float) : production run ns
+        T (float, optional): _description_. Defaults to 301.15.
+        solv_pdb (str, optional): 溶媒1分子の .pdb 指定するとsolv_groを生成してくれる. Default は None.
+    """
 
     soln = InitialStructure(0.9)
+    if solv_pdb is not None:
+        soln.register_solv(
+            solv_pdb=solv_pdb
+        )
+        solv_gro = os.path.basename(solv_pdb)+".pdb"
     soln.soln_setup(
-        solute_itp_path=f"{os.path.dirname(__file__)}/gaff.ff/PEG6_GMX.itp",
-        solute_gro_path=f"{os.path.dirname(__file__)}/gaff.ff/PEG6_GMX.gro",
-        solv_gro_path=f"{os.path.dirname(__file__)}/gaff.ff/spc216.gro",
-        solv_itp_path=f"{os.path.dirname(__file__)}/gaff.ff/tip3p.gro",
-        wf=0.1,box_size=8
+        solute_itp_path=solute_itp,
+        solute_gro_path=solute_gro,
+        solute_itp_path_out=solute_itp_out,
+        solv_gro_path=solv_gro,
+        solv_itp_path=solv_itp,
+        wf=wf,box_size=box_size
     )
+    solute_name = os.path.basename(solute_itp_out)
+    solute_name = os.path.splitext(solute_name)[0]
+    solv_name = os.path.basename(solv_itp)
+    solv_name = os.path.splitext(solv_name)[0]
+    topfile = f"{solute_name}_{solv_name}_solvated.top"
+    grofile = f"{solute_name}_{solv_name}_solvated.gro"
     soln_run = RunThrow(
-        topfile="PEG6_GMX_tip3p.top",
-        init_grofile="PEG6_GMX_tip3p.gro"
+        topfile=topfile,
+        init_grofile=grofile
     )
     soln_run.run_EM()
-    soln_run.run_nvt(T=301.15)
-    soln_run.run_npt(T=301.15,run_ns=10)
-    soln_run.run_production(T=301.15)
+    soln_run.run_nvt(T=T,run_ns=nvt_ns,grps=["MOL","SOL"])
+    soln_run.run_npt(T=T,run_ns=npt_ns,grps=["MOL","SOL"])
+    soln_run.run_production(T=T,run_ns=production_ns,grps=["MOL","SOL"])
 
-soln_MD()

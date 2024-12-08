@@ -123,9 +123,36 @@ class ForceFieldSetup:
                         to_remove.add(key)
             # 残りのセクションをファイルに書き込む
             for key, value in data_dict.items():
+                lines = value.split("\n")
                 if key not in to_remove:
+                    if key == "[ bonds ]":
+                        for idx,line in enumerate(lines):
+                            if len(line) == 0:
+                                continue
+                            if line[0] == ";":
+                                continue
+                            else:
+                                lines[idx] = " "+"\t".join(line.split()[:2])
+                    if key == "[ angles ]":
+                        for idx,line in enumerate(lines):
+                            if len(line) == 0:
+                                continue
+                            if line[0] == ";":
+                                continue
+                            else:
+                                lines[idx] = " "+"\t".join(line.split()[:3])
+                    if key == "[ dihedrals ]":
+                        for idx,line in enumerate(lines):
+                            if len(line) == 0:
+                                continue
+                            if line[0] == ";":
+                                continue
+                            else:
+                                lines[idx] = " "+"\t".join(line.split()[:5])
+                    lines.append(" ")
+                    value = "\n".join(lines)
                     f.write(key + "\n")
-                    f.write(value + "\n")
+                    f.write(value + " \n")
 
     @classmethod
     def write_top(cls, top_path, itp_paths, nums, molecules, name_of_run):
@@ -343,7 +370,7 @@ class InitialStructure:
         # 溶媒和システムのトポロジーファイルを作成
         ForceFieldSetup.write_top(
             top_path=f"{os.path.basename(os.path.splitext(solute_itp_path_out)[0])}_{os.path.basename(os.path.splitext(solv_itp_path)[0])}_solvated.top",
-            itp_paths=[solv.ffdir + "/forcefield.itp", solv.itp_path,solute_itp_path_out],
+            itp_paths=[solv.ffdir + "/forcefield.itp",solute_itp_path_out,solv.itp_path],
             nums=[N_1,None],
             molecules=[solute.mole_name,solv.mole_name],
             name_of_run=f"{os.path.basename(os.path.splitext(solute_itp_path_out)[0])} in {os.path.basename(os.path.splitext(solv_itp_path)[0])}"

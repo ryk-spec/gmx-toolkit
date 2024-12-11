@@ -936,6 +936,10 @@ HW        HW         1   0.15136    462750.4
 OW_d      EP         1   0.01546    462750.4
 OW_d      HW         1   0.09572    462750.4
 OW_tip5p  EP         1   0.07000    462750.4
+OW_opc        EP_opc         1   0.01594    462750.4
+OW_opc        HW_opc         1   0.08724    462750.4
+HW_opc        HW_opc         1   0.13712    462750.4
+
 
 [ angletypes ]
 ;  i    j    k  func       th0       cth
@@ -6263,6 +6267,9 @@ HW        OW_d      EP         1   120.000     0.000
 HW        OW_d      HW         1   104.520   836.800
 HW        HW        OW_d       1   127.740     0.000
 HW        OW_tip5p  EP         1   109.470     0.000
+HW_opc        OW_opc        EP_opc         1   120.000     0.000
+HW_opc        OW_opc        HW_opc         1   103.600   836.800
+HW_opc        HW_opc        OW_opc         1   127.740     0.000
 
 [ dihedraltypes ] ; improper stuff
 ;i   j   k   l	   func

@@ -85,16 +85,18 @@ class WaxsCalculator:
         return topology.select("(symbol != VS) and all")
 
 
-    def mainroop(self,name,query="water",maxq=35,stride=10,end=100):
-        start = time.time()
+    def mainroop(self,name,query="water",maxq=35,stride=10,end=1000):
         frame : md.Trajectory
         print("begin to calculation")
         count = 0
         Iq_save_list = []
         for frame  in md.iterload(self.trr,top=self.gro,chunk=1,stride=stride):
             count += 1
+            starttime = time.time()
             print(f"Frame number {frame.time[0]}",flush=True)
-            if frame.time[0] >= end:
+            print(frame.time[0],end,int(frame.time[0]) >= end)
+            if int(frame.time[0]) >= end:
+                print("END")
                 break
             topology = frame.topology
             atoms_idx = None
@@ -132,6 +134,9 @@ class WaxsCalculator:
             Iq_save_list.append(
                 waxs_interp(np.linspace(0,maxq,100))
             )
+            endtime = time.time()
+            print(f"{endtime-starttime:.2f} second")
+
         Iq = np.stack(Iq_save_list,axis=-1)
         Iq = np.mean(Iq,axis=1)
         print(np.stack([np.linspace(0,maxq,100),Iq],axis=1))
@@ -145,7 +150,7 @@ class WaxsCalculator:
             sep=" ",columns=None,index=None
         )
         end = time.time()
-        print(f"\nend {end-start:.2f} second")
+        print(f"\nend")
 
         
     def calc_F(self,qs,coords):
@@ -157,7 +162,7 @@ class WaxsCalculator:
         dataset = TensorDataset(q)
         dataset2 = TensorDataset(a,b,c,r)
         # DataLoader を使用して、データをバッチごとにロード
-        batch_size =2**13
+        batch_size =5000
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         dataloader2 = DataLoader(dataset2, batch_size=batch_size, shuffle=False)
         F_real_list = []  # F_real を保存するリスト

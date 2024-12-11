@@ -503,7 +503,7 @@ class RunThrow:
         em_params = {
             "integrator": "steep",        # 最急降下法
             "nsteps": 50000,             # 最大ステップ数
-            "emtol": 1000.0,             # エネルギー収束基準
+            "emtol": 10.0,             # エネルギー収束基準
             "emstep": 0.01,              # 最小化ステップサイズ
             "cutoff-scheme": "Verlet",
             "nstlist": 10,
@@ -523,12 +523,12 @@ class RunThrow:
         :param run_ns: シミュレーション時間（ns）
         :param grps: 速度生成の対象となるグループ（list）
         """
-        nsteps = run_ns * 1000 / 0.002
+        nsteps = run_ns * 1000 / 0.0005
         nsteps = int(nsteps)
         nvt_params = {
             "integrator": "md",          # 分子動力学
             "nsteps": nsteps,            # シミュレーションステップ数
-            "dt": 0.002,                 # タイムステップ（ps）
+            "dt": 0.0005,                 # タイムステップ（ps）
             "cutoff-scheme": "Verlet",
             "nstlist": 10,
             "coulombtype": "PME",
@@ -539,7 +539,6 @@ class RunThrow:
             "gen_vel": "yes",            # 初期速度を生成
             "gen_temp": temperature,
             "gen_seed": -1,
-            "constraints": "all-bonds"
         }
         nvt_params["tc-grps"] = "\t".join(grps)
         nvt_params["tau-t"] = "\t".join(["0.2" for _ in grps])
@@ -621,7 +620,7 @@ class RunThrow:
         production_params["ref-t"] = "\t".join([f"{temperature}" for _ in grps])
         RunThrow.write_mdp(output_file, production_params)
 
-def solv_MD(solv_gro,solv_itp,box_size=5,nvt_ns=0.5,npt_ns=5,production_ns=5,T=301.15,solv_pdb=None):
+def solv_MD(solv_gro,solv_itp,box_size=5,nvt_ns=0.5,npt_ns=5,production_ns=5,T=301.15,solv_pdb="None"):
     """
     溶媒のMDを回すメソッド
 
@@ -636,7 +635,7 @@ def solv_MD(solv_gro,solv_itp,box_size=5,nvt_ns=0.5,npt_ns=5,production_ns=5,T=3
         T (float): 絶対温度
     """
     solv = InitialStructure(0.9)
-    if solv_pdb is not None:
+    if solv_pdb != "None":
         solv.register_solv(
             solv_pdb=solv_pdb
         )
@@ -660,7 +659,7 @@ def solv_MD(solv_gro,solv_itp,box_size=5,nvt_ns=0.5,npt_ns=5,production_ns=5,T=3
     solv_run.run_production(T=T,run_ns=production_ns)
 
 def soln_MD(solute_itp,solute_itp_out,solute_gro,solv_gro,solv_itp,box_size=8,wf=0.1,
-            nvt_ns=0.5,npt_ns=10,production_ns=5,T=301.15,solv_pdb=None):
+            nvt_ns=0.5,npt_ns=10,production_ns=5,T=301.15,solv_pdb="None"):
     """
     溶液のMDを回すメソッド
 
@@ -681,7 +680,7 @@ def soln_MD(solute_itp,solute_itp_out,solute_gro,solv_gro,solv_itp,box_size=8,wf
     """
 
     soln = InitialStructure(0.9)
-    if solv_pdb is not None:
+    if solv_pdb != "None":
         soln.register_solv(
             solv_pdb=solv_pdb
         )
